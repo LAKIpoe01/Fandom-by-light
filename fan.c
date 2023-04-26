@@ -5,7 +5,7 @@
 
 #define INPUT_LIGHT A0
 #define INPUT_DIAL A1
-#define INPUT_BUTTON 2
+#define INPUT_BUTTON A2
 #define OUTPUT_SERVO 9
 
 #define ANALOG_MAX 1023
@@ -33,7 +33,7 @@ void setup() {
   servo.attach(OUTPUT_SERVO);
   
   // Read threshold from eeprom.
-  threshold = ((int) EEMPROM.read(EEPROM_ADDRESS) << 8) + EEPROM.read(EEPROM_ADDRESS + 1);
+  threshold = ((int) EEPROM.read(EEPROM_ADDRESS) << 8) + EEPROM.read(EEPROM_ADDRESS + 1);
 
 #ifdef DEBUG
   Serial.begin(9600);
@@ -48,17 +48,21 @@ void loop() {
 
   // When the button is pressed recalculate the target up, down and threshold.
   if (button && !last_button) {
-    const int new_threshold = 
-      erf(((double) light - (double) ANALOG_MAX) / (double) ANALOG_MAX) 
-      * (double) ANALOG_MAX + 862.0d;
-    
+    // Calculate the new threshold with smoothening and constraint, so values
+    // stay inside the analog value domain.
+    const int new_threshold = constrain(
+      cos((double) (2 * light - threshold) / 329 + 3.1416d) * 512.0d + 512.0d, 
+      0, 
+      ANALOG_MAX
+    );
+
     if (new_threshold != threshold) {
       threshold = new_threshold;
       
       // Write threshold to eeprom.
-      EEPROM.write(EEPROM_ADDRESS, threshold >> 8);
-      EEPROM.write(EEPROM_ADDRESS + 1, threshold & 0xFF);
-	}
+      EEPROM.update(EEPROM_ADDRESS, threshold >> 8);
+      EEPROM.update(EEPROM_ADDRESS + 1, threshold & 0xFF);
+	  }
   }
 
   // This block is executed once a second (ish).
